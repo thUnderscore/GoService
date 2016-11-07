@@ -1,0 +1,11 @@
+builds
+goroot
+ndk-toolchain
+gopath/bin
+gopath/pkg
+gopath/src/*
+!gopath/src/unity
+**/.vscode
+**/debug.test
+**/cover.out
+**/*_
