@@ -15,19 +15,24 @@ func TestMessageQueue(t *testing.T) {
 	wg := new(sync.WaitGroup)
 
 	var mq *MessageQueue
-	mq = NewMessageQueue(func(i interface{}, isOn bool) {
-		if i == nil {
+	mq = NewMessageQueue(func(m *Message, isOn bool) {
+		var data *TestMessage
+		if m.data != nil {
+			data = m.data.(*TestMessage)
+		}
+		m.data = 42
+		if data == nil {
 			l.Log("nil")
 			return
 		}
-		m := i.(*TestMessage)
+
 		if isOn {
-			l.Log(m.text)
+			l.Log(data.text)
 		} else {
-			l.Log(m.text + "stopping")
+			l.Log(data.text + "stopping")
 		}
 
-		if m.text == "exit" {
+		if data.text == "exit" {
 			Sleep100ms()
 			go func() {
 				mq.Stop(true)
@@ -37,7 +42,7 @@ func TestMessageQueue(t *testing.T) {
 		}
 	})
 
-	if mq.Add(&TestMessage{}) {
+	if mq.Send(0, nil, true) != nil {
 		t.Error("message shouldn't be added before Run")
 	}
 
@@ -50,28 +55,28 @@ func TestMessageQueue(t *testing.T) {
 
 	cntr := 0
 
-	if !mq.Add(nil) {
-		t.Error("empty message should be added")
+	if mq.Send(0, nil, true) != 42 {
+		t.Error("empty message should be added and return result")
 	}
 	Sleep100ms()
 	cntr++
 	CheckTestLogger(t, l, cntr, "nil")
 
-	mq.Add(&TestMessage{text: "message"})
+	mq.Send(0, &TestMessage{text: "message"}, false)
 	Sleep100ms()
 	cntr++
 	CheckTestLogger(t, l, cntr, "message")
 
 	for i := 0; i < 10; i++ {
-		go mq.Add(&TestMessage{text: "message_go"})
+		go mq.Send(0, &TestMessage{text: "message_go"}, false)
 	}
 	Sleep100ms()
 	cntr = cntr + 10
 	CheckTestLogger(t, l, cntr, "message_go")
 
-	mq.Add(&TestMessage{text: "exit"})
+	mq.Send(0, &TestMessage{text: "exit"}, false)
 	Sleep50ms()
-	mq.Add(&TestMessage{text: "after_exit"})
+	mq.Send(0, &TestMessage{text: "after_exit"}, false)
 	cntr++
 	CheckTestLogger(t, l, cntr, "exit")
 	wg.Wait()
@@ -79,7 +84,7 @@ func TestMessageQueue(t *testing.T) {
 	cntr++
 	CheckTestLogger(t, l, cntr, "after_exit"+"stopping")
 
-	if mq.Add(&TestMessage{}) {
+	if mq.Send(0, &TestMessage{}, true) != nil {
 		t.Error("message shouldn't be added after stop")
 	}
 }
@@ -91,7 +96,7 @@ func TestMessageQueueStop(t *testing.T) {
 	//empty
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
-	mq := NewMessageQueue(func(i interface{}, isOn bool) {
+	mq := NewMessageQueue(func(m *Message, isOn bool) {
 
 	})
 	mq.Stop(true)
@@ -110,7 +115,7 @@ func TestMessageQueueStop(t *testing.T) {
 	//not empty
 	wg = new(sync.WaitGroup)
 	wg.Add(1)
-	mq = NewMessageQueue(func(i interface{}, isRun bool) {
+	mq = NewMessageQueue(func(m *Message, isRun bool) {
 		Sleep50ms()
 	})
 	mq.Start()
@@ -119,11 +124,11 @@ func TestMessageQueueStop(t *testing.T) {
 	}
 
 	for i := 0; i < 10; i++ {
-		mq.Add(&TestMessage{text: "message"})
+		mq.Send(0, &TestMessage{text: "message"}, false)
 	}
 	Sleep100ms()
 	for i := 0; i < 10; i++ {
-		mq.Add(&TestMessage{text: "message"})
+		mq.Send(0, &TestMessage{text: "message"}, false)
 	}
 	mq.Stop(false)
 	if mq.cntr == 0 {
