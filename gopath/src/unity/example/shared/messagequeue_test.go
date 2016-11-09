@@ -15,7 +15,7 @@ func TestMessageQueue(t *testing.T) {
 	wg := new(sync.WaitGroup)
 
 	var mq *MessageQueue
-	mq = NewMessageQueue(func(m *Message, isOn bool) {
+	mq = NewMessageQueue(func(m *Message) {
 		var data *TestMessage
 		if m.data != nil {
 			data = m.data.(*TestMessage)
@@ -26,7 +26,7 @@ func TestMessageQueue(t *testing.T) {
 			return
 		}
 
-		if isOn {
+		if mq.isOn() {
 			if m.code == 42 {
 				Logf("%d%s", m.code, data.text)
 			} else {
@@ -101,7 +101,7 @@ func TestMessageQueueStop(t *testing.T) {
 	//empty
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
-	mq := NewMessageQueue(func(m *Message, isOn bool) {
+	mq := NewMessageQueue(func(m *Message) {
 
 	})
 	mq.Stop(true)
@@ -120,7 +120,7 @@ func TestMessageQueueStop(t *testing.T) {
 	//not empty
 	wg = new(sync.WaitGroup)
 	wg.Add(1)
-	mq = NewMessageQueue(func(m *Message, isRun bool) {
+	mq = NewMessageQueue(func(m *Message) {
 		Sleep50ms()
 	})
 	mq.Start()

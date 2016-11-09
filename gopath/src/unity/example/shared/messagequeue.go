@@ -7,7 +7,7 @@ type MessageQueue struct {
 	head *Message
 	//tail of messages list
 	tail    *Message
-	handler func(data *Message, isOn bool)
+	handler func(data *Message)
 }
 
 //Send adds message to queue. If queue is not running
@@ -37,17 +37,16 @@ func (q *MessageQueue) Send(code MessageCode, data interface{}, sync bool) inter
 }
 
 //NewMessageQueue MessageQueue constructor
-func NewMessageQueue(handler func(*Message, bool)) *MessageQueue {
+func NewMessageQueue(handler func(*Message)) *MessageQueue {
 	mq := &MessageQueue{handler: handler}
 	mq.JobCond = *NewJobCond(func(j *JobCond) {
 		curr := mq.head
-		isOn := mq.on
 		mq.head = nil
 		mq.tail = nil
 		var m *Message
 		j.mx.Unlock()
 		for curr != nil {
-			handler(curr, isOn)
+			handler(curr)
 			m = curr
 			curr = curr.next
 			m.handled()
