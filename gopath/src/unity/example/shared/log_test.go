@@ -70,7 +70,7 @@ func TestLog(t *testing.T) {
 			t.Errorf("has logger")
 		}
 	}
-
+	Sleep100ms()
 	writeFile.Close()
 	os.Stdout = oldStdout
 	if s != "11111111111111111111" {

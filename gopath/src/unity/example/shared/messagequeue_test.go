@@ -27,9 +27,14 @@ func TestMessageQueue(t *testing.T) {
 		}
 
 		if isOn {
-			l.Log(data.text)
+			if m.code == 42 {
+				Logf("%d%s", m.code, data.text)
+			} else {
+				Log(data.text)
+			}
+
 		} else {
-			l.Log(data.text + "stopping")
+			Log(data.text + "stopping")
 		}
 
 		if data.text == "exit" {
@@ -62,10 +67,10 @@ func TestMessageQueue(t *testing.T) {
 	cntr++
 	CheckTestLogger(t, l, cntr, "nil")
 
-	mq.Send(0, &TestMessage{text: "message"}, false)
+	mq.Send(42, &TestMessage{text: "message"}, false)
 	Sleep100ms()
 	cntr++
-	CheckTestLogger(t, l, cntr, "message")
+	CheckTestLogger(t, l, cntr, "42message")
 
 	for i := 0; i < 10; i++ {
 		go mq.Send(0, &TestMessage{text: "message_go"}, false)
