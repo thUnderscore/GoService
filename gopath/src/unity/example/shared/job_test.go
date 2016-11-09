@@ -13,8 +13,10 @@ func TestJobCondSmpl(t *testing.T) {
 	cntr := 0
 	j := NewJobCond(func(j *JobCond) {
 		cntr = cntr + j.wakesToHandle
-		Log("handle JobCond")
-		wg.Done()
+		for i := 0; i < j.wakesToHandle; i++ {
+			Log("handle JobCond")
+			wg.Done()
+		}
 	}, false)
 
 	for i := 0; i < 10; i++ {
@@ -24,7 +26,7 @@ func TestJobCondSmpl(t *testing.T) {
 	if !j.isOn() {
 		t.Error("Job should be started")
 	}
-	wg.Add(11)
+	wg.Add(10)
 	for i := 0; i < 10; i++ {
 		go func() {
 			Log("before wake")
@@ -32,20 +34,12 @@ func TestJobCondSmpl(t *testing.T) {
 			Log("after wake")
 		}()
 	}
-	Sleep100ms()
+	wg.Wait()
 	cnt := 30
 	CheckTestLogger(t, l, cnt, "after wake")
-	go func() {
-		Sleep1s()
-		Log("defered wait done")
-		wg.Done()
-	}()
-	wg.Wait()
 	if cntr != 10 {
 		t.Error("cntr should be ", 10, "not", cntr)
 	}
-	cnt = cnt + 1
-	CheckTestLogger(t, l, cnt, "defered wait done")
 
 	wg.Add(10)
 	for i := 0; i < 10; i++ {
@@ -53,18 +47,43 @@ func TestJobCondSmpl(t *testing.T) {
 			j.Wake()
 		}()
 	}
-	Sleep1s()
-	//wg.Wait()
+	wg.Wait()
 	if cntr != 20 {
 		t.Error("wake : cntr should be ", 20, "not", cntr)
+	}
+	/*
+		for i := 0; i < 10; i++ {
+			go j.Stop(false)
+		}
+	*/
+	j.Stop(true)
+	j.Wake()
+	if j.cntr != 0 {
+		t.Error("wake on stopped job should be ignorred ")
+	}
+	j.WakeSync() //shouldn't hang
+	if j.isOn() {
+		t.Error("Job should be stopped")
+	}
+
+	j.Start()
+	if !j.isOn() {
+		t.Error("Restart: Job should be started")
+	}
+	wg.Add(1)
+	j.Wake()
+	wg.Wait()
+	cnt = cnt + 1
+	if cntr != 21 {
+		t.Error("Wake was not processed")
 	}
 
 	for i := 0; i < 10; i++ {
 		go j.Stop(false)
 	}
-	j.Stop(true)
+	Sleep100ms()
 	if j.isOn() {
-		t.Error("Job should be stopped")
+		t.Error("Restart: Job should be stopped")
 	}
 
 }
@@ -80,16 +99,20 @@ func TestJobCondEx(t *testing.T) {
 	j := NewJobCond(func(j *JobCond) {
 
 		for {
-			//wait signal
-			j.cnd.Wait()
+			if j.cntr == 0 && j.on {
+				//wait signal
+				j.cnd.Wait()
+			}
 			//if Stop and no any Wake happend after last handling j.cntr is 0
 			//handle situation when j.cntr > 0 and j.isOn == false in f if you need
 			if j.cntr > 0 {
 				//handle gignals
 				j.wakesToHandle = j.cntr
 				cntr = cntr + j.wakesToHandle
-				Log("handle JobCondEx")
-				wg.Done()
+				for i := 0; i < j.wakesToHandle; i++ {
+					Log("handle JobCondEx")
+					wg.Done()
+				}
 
 				//reset wakes counter
 				j.cntr = 0
@@ -133,7 +156,7 @@ func TestJobCondEx(t *testing.T) {
 		t.Error("Job should be started")
 	}
 
-	wg.Add(11)
+	wg.Add(10)
 	for i := 0; i < 10; i++ {
 		go func() {
 			Log("before wake")
@@ -141,20 +164,13 @@ func TestJobCondEx(t *testing.T) {
 			Log("after wake")
 		}()
 	}
-	Sleep100ms()
+	wg.Wait()
 	cnt := 30
 	CheckTestLogger(t, l, cnt, "after wake")
-	go func() {
-		Sleep1s()
-		Log("defered wait done")
-		wg.Done()
-	}()
-	wg.Wait()
+
 	if cntr != 10 {
 		t.Error("cntr should be ", 10, "not", cntr)
 	}
-	cnt = cnt + 1
-	CheckTestLogger(t, l, cnt, "defered wait done")
 
 	wg.Add(10)
 	for i := 0; i < 10; i++ {
@@ -162,18 +178,39 @@ func TestJobCondEx(t *testing.T) {
 			j.Wake()
 		}()
 	}
-	Sleep1s()
-	//wg.Wait()
+	wg.Wait()
 	if cntr != 20 {
 		t.Error("wake: cntr should be ", 20, "not", cntr)
+	}
+
+	j.Stop(true)
+	/*
+		for i := 0; i < 10; i++ {
+			go j.Stop(false)
+		}
+	*/
+	if j.isOn() {
+		t.Error("Job should be stopped")
+	}
+
+	j.Start()
+	if !j.isOn() {
+		t.Error("Restart: Job should be started")
+	}
+	wg.Add(1)
+	j.Wake()
+	wg.Wait()
+	cnt = cnt + 1
+	if cntr != 21 {
+		t.Error("Wake was not processed")
 	}
 
 	for i := 0; i < 10; i++ {
 		go j.Stop(false)
 	}
-	j.Stop(true)
+	Sleep100ms()
 	if j.isOn() {
-		t.Error("Job should be stopped")
+		t.Error("Restart: Job should be stopped")
 	}
 }
 
@@ -212,39 +249,55 @@ func TestJobChan(t *testing.T) {
 	if !j.isOn() {
 		t.Error("Job should be started")
 	}
-	wg.Add(11)
+	wg.Add(10)
 	for i := 0; i < 10; i++ {
 		go func() {
 			Log("before wake")
-			sgnl <- 1
 			cnd.L.Lock()
+			sgnl <- 1
 			cnd.Wait()
 			cnd.L.Unlock()
 			Log("after wake")
 			wg.Done()
 		}()
 	}
-	Sleep100ms()
+	wg.Wait()
 	cnt := 30
 	CheckTestLogger(t, l, cnt, "after wake")
-	go func() {
-		Sleep1s()
-		Log("defered wait done")
-		wg.Done()
-	}()
-	wg.Wait()
+
 	if cntr != 10 {
 		t.Error("cntr should be ", 10, "not", cntr)
 	}
+
+	j.Stop(true)
+	if j.isOn() {
+		t.Error("Job should be stopped")
+	}
+
+	j.Start()
+	if !j.isOn() {
+		t.Error("Restart: Job should be started")
+	}
+	//wg.Add(1)
+
+	cnd.L.Lock()
+	sgnl <- 2
+	cnd.Wait()
+	cnd.L.Unlock()
+
+	//wg.Wait()
 	cnt = cnt + 1
-	CheckTestLogger(t, l, cnt, "defered wait done")
+	CheckTestLogger(t, l, cnt, "handle JobChan")
+	if cntr != 12 {
+		t.Error("Wake was not processed")
+	}
 
 	for i := 0; i < 10; i++ {
 		go j.Stop(false)
 	}
-	j.Stop(true)
+	Sleep100ms()
 	if j.isOn() {
-		t.Error("Job should be stopped")
+		t.Error("Restart: Job should be stopped")
 	}
 
 }

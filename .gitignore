@@ -8,4 +8,5 @@ gopath/src/*
 **/.vscode
 **/debug.test
 **/cover.out
+**/coverage.out
 **/*_

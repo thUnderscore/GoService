@@ -2,13 +2,21 @@ package shared
 
 import "sync"
 
+//MessageCode specifies code of Message. Handlers could use to do some specific stuff
+//but it's not required tu use it
 type MessageCode int
 
+//Message is wrapper for message code and data. Messages could be joined in linked list
 type Message struct {
+	//code of messsage. Provide additional info for handlers, but could be ignored
 	code MessageCode
+	//is message sent in sync mode
 	sync bool
-	cnd  *sync.Cond
+	//caller wait for this Cond if sync == true
+	cnd *sync.Cond
+	//additional data/ Could be nil
 	data interface{}
+	//reference to next message in linked list
 	next *Message
 }
 
