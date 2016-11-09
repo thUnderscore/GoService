@@ -6,6 +6,10 @@ func Sleep100ms() {
 	time.Sleep(100 * time.Millisecond)
 }
 
+func Sleep50ms() {
+	time.Sleep(50 * time.Millisecond)
+}
+
 func Sleep10ms() {
 	time.Sleep(10 * time.Millisecond)
 }

@@ -1,6 +1,8 @@
 package shared
 
 import (
+	"bufio"
+	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -21,7 +23,23 @@ func (lgr *testLogger) Log(str string) {
 }
 
 func TestLog(t *testing.T) {
-	Log("0")
+	ResetLogger()
+
+	oldStdout := os.Stdout
+	readFile, writeFile, err := os.Pipe()
+	if err != nil {
+		t.Error("cant create pipe", err)
+	}
+	os.Stdout = writeFile
+	var s string
+	go func() {
+		scanner := bufio.NewScanner(readFile)
+		for scanner.Scan() {
+			line := scanner.Text()
+			s = s + line
+		}
+	}()
+	Sleep100ms()
 	for i := 0; i < 10; i++ {
 		l := new(testLogger)
 		SetLogger(l)
@@ -46,9 +64,17 @@ func TestLog(t *testing.T) {
 		}
 		CheckTestLogger(t, l, 13, "10")
 		ResetLogger()
+		Log("11")
+		CheckTestLogger(t, l, 13, "10")
 		if HasLogger() {
 			t.Errorf("has logger")
 		}
+	}
+
+	writeFile.Close()
+	os.Stdout = oldStdout
+	if s != "11111111111111111111" {
+		t.Error("Reseted log: ", s)
 	}
 
 }
