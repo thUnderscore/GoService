@@ -18,7 +18,7 @@ func TestJobCondSmpl(t *testing.T) {
 			wg.Done()
 		}
 	}, false)
-
+	var _ Job = j //should implement Job
 	for i := 0; i < 10; i++ {
 		go j.Start()
 	}
@@ -26,12 +26,13 @@ func TestJobCondSmpl(t *testing.T) {
 	if !j.isOn() {
 		t.Error("Job should be started")
 	}
-	wg.Add(10)
+	wg.Add(20)
 	for i := 0; i < 10; i++ {
 		go func() {
 			Log("before wake")
 			j.WakeSync()
 			Log("after wake")
+			wg.Done()
 		}()
 	}
 	wg.Wait()
@@ -148,6 +149,7 @@ func TestJobCondEx(t *testing.T) {
 		}
 
 	}, true)
+	var _ Job = j //should implement Job
 	for i := 0; i < 10; i++ {
 		go j.Start()
 	}
@@ -156,12 +158,13 @@ func TestJobCondEx(t *testing.T) {
 		t.Error("Job should be started")
 	}
 
-	wg.Add(10)
+	wg.Add(20)
 	for i := 0; i < 10; i++ {
 		go func() {
 			Log("before wake")
 			j.WakeSync()
 			Log("after wake")
+			wg.Done()
 		}()
 	}
 	wg.Wait()

@@ -5,17 +5,22 @@ import (
 	"testing"
 )
 
+var _ MessageSender = new(MessageQueue) //should implement MessageSender
+
 type TestMessage struct {
 	text string
 }
 
-func TestMessageQueue(t *testing.T) {
+func TestMessageQueueEx(t *testing.T) {
 	l := new(testLogger)
 	SetLogger(l)
 	wg := new(sync.WaitGroup)
 
 	var mq *MessageQueue
-	mq = NewMessageQueue(func(m *Message) {
+	var msgcntr int
+	mq = NewMessageQueueEx(func(m *Message) {
+		defer wg.Done()		
+		msgcntr++
 		var data *TestMessage
 		if m.data != nil {
 			data = m.data.(*TestMessage)
@@ -27,9 +32,13 @@ func TestMessageQueue(t *testing.T) {
 		}
 
 		if mq.isOn() {
-			if m.code == 42 {
+			switch m.code {
+			case 42:
 				Logf("%d%s", m.code, data.text)
-			} else {
+			case 48:
+				Sleep50ms()
+				fallthrough
+			default:
 				Log(data.text)
 			}
 
@@ -47,7 +56,15 @@ func TestMessageQueue(t *testing.T) {
 		}
 	})
 
-	if mq.Send(0, nil, true) != nil {
+	mq.SetHandler(0, func(m *Message) {}) // shouldn't raise
+
+	mq.SendSync(0, nil)
+	if msgcntr != 0 {
+		t.Error("message shouldn't be added before Run")
+	}
+	mq.Send(0, nil)
+	Sleep100ms()
+	if msgcntr != 0 {
 		t.Error("message shouldn't be added before Run")
 	}
 
@@ -55,33 +72,45 @@ func TestMessageQueue(t *testing.T) {
 		t.Error("mq not empty")
 	}
 
-	wg.Add(1)
 	mq.Start()
 
 	cntr := 0
 
-	if mq.Send(0, nil, true) != 42 {
+	wg.Add(1)
+	if mq.SendSync(0, nil) != 42 {
 		t.Error("empty message should be added and return result")
 	}
-	Sleep100ms()
+	wg.Wait()
 	cntr++
 	CheckTestLogger(t, l, cntr, "nil")
 
-	mq.Send(42, &TestMessage{text: "message"}, false)
-	Sleep100ms()
+	wg.Add(1)
+	mq.Send(42, &TestMessage{text: "message"})
+	wg.Wait()
 	cntr++
 	CheckTestLogger(t, l, cntr, "42message")
 
-	for i := 0; i < 10; i++ {
-		go mq.Send(0, &TestMessage{text: "message_go"}, false)
+	wg.Add(10)
+	for i := 0; i < 10; i++ {		
+		go mq.Send(1, &TestMessage{text: "message_go"})
 	}
-	Sleep100ms()
+	wg.Wait()
 	cntr = cntr + 10
 	CheckTestLogger(t, l, cntr, "message_go")
 
-	mq.Send(0, &TestMessage{text: "exit"}, false)
+	wg.Add(2)
+	mq.Send(48, &TestMessage{text: "sync_not_empty_queue_prepare"})
+	mq.SendSync(2, &TestMessage{text: "sync_not_empty_queue"})
+	//wg.Wait()
+	cntr = cntr + 2
+	CheckTestLogger(t, l, cntr, "sync_not_empty_queue")
+
+	wg.Add(2)
+	mq.Send(3, &TestMessage{text: "exit"})
 	Sleep50ms()
-	mq.Send(0, &TestMessage{text: "after_exit"}, false)
+	wg.Add(1)
+	mq.Send(4, &TestMessage{text: "after_exit"})
+
 	cntr++
 	CheckTestLogger(t, l, cntr, "exit")
 	wg.Wait()
@@ -89,11 +118,53 @@ func TestMessageQueue(t *testing.T) {
 	cntr++
 	CheckTestLogger(t, l, cntr, "after_exit"+"stopping")
 
-	if mq.Send(0, &TestMessage{}, true) != nil {
+	if mq.SendSync(0, &TestMessage{}) != nil {
 		t.Error("message shouldn't be added after stop")
 	}
+	mq.Stop(false)
 }
 
+func TestMessageQueue(t *testing.T) {
+
+	var mq *MessageQueue
+	mq = NewMessageQueue()
+
+	var res int
+
+	mq.SendSync(0, nil) // shouldn't raise
+	if res != 0 {
+		t.Error("wrong res with no handlers")
+	}
+
+	mq.SetHandler(0, func(m *Message) {
+		res = 0
+	})
+
+	mq.SetHandler(1, func(m *Message) {
+		res++
+	})
+
+	mq.Start()
+
+	mq.SendSync(1, nil)
+	if res == 0 {
+		t.Error("code 1 was not handled")
+	}
+	mq.SendSync(0, nil)
+	if res != 0 {
+		t.Error("code 0 was not handled")
+	}
+	mq.SetHandler(0, nil) //dosen't set if mq.IsOn()
+	mq.SendSync(1, nil)
+	if res == 0 {
+		t.Error("code 1 was not handled")
+	}
+	mq.SendSync(0, nil)
+	if res != 0 {
+		t.Error("code 0 should be still handled after mq.SetHandler on live mq")
+	}
+	mq.Stop(false)
+}
 func TestMessageQueueStop(t *testing.T) {
 	l := new(testLogger)
 	SetLogger(l)
@@ -101,7 +172,7 @@ func TestMessageQueueStop(t *testing.T) {
 	//empty
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
-	mq := NewMessageQueue(func(m *Message) {
+	mq := NewMessageQueueEx(func(m *Message) {
 
 	})
 	mq.Stop(true)
@@ -120,26 +191,23 @@ func TestMessageQueueStop(t *testing.T) {
 	//not empty
 	wg = new(sync.WaitGroup)
 	wg.Add(1)
-	mq = NewMessageQueue(func(m *Message) {
-		Sleep50ms()
+	mq = NewMessageQueueEx(func(m *Message) {
+		Sleep10ms()
 	})
 	mq.Start()
 	if !mq.isOn() {
 		t.Error("Stop empty queue: queue was not started")
 	}
-
+	//handling during aprox. 10* 10ms
 	for i := 0; i < 10; i++ {
-		mq.Send(0, &TestMessage{text: "message"}, false)
-	}
-	Sleep100ms()
-	for i := 0; i < 10; i++ {
-		mq.Send(0, &TestMessage{text: "message"}, false)
-	}
-	mq.Stop(false)
+		mq.Send(0, &TestMessage{text: "message"})
+	}	
+	mq.Stop(false)	
 	if mq.cntr == 0 {
 		t.Error("Stop not empty queue: cntr shoud be great than 0")
 	}
-	Sleep1s()
+	Sleep100ms()
+	Sleep10ms()
 	if mq.isOn() {
 		t.Error("Stop not empty queue: state should be mqsStoped")
 	}

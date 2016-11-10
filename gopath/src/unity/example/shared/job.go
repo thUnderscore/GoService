@@ -6,7 +6,7 @@ import "sync"
 type Job interface {
 	Start()
 	Stop(sync bool)
-	isOn()
+	isOn() bool
 }
 
 type jobSwitcher struct {
@@ -167,7 +167,7 @@ func (j *JobCond) InternalStop(sync bool) {
 func (j *JobCond) handleWakes() {
 	//if Stop and no any Wake happend after last handling j.cntr is 0
 	//handle situation when j.cntr > 0 and j.isOn == false in f if you need
-	if j.cntr > 0 {
+	if j.cntr > 0 {		
 		j.wakesToHandle = j.cntr
 		//reset state
 		j.cntr = 0

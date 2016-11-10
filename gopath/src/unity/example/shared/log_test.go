@@ -32,14 +32,18 @@ func TestLog(t *testing.T) {
 	}
 	os.Stdout = writeFile
 	var s string
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
 	go func() {
 		scanner := bufio.NewScanner(readFile)
+		wg.Done()	
 		for scanner.Scan() {
 			line := scanner.Text()
 			s = s + line
 		}
 	}()
-	Sleep100ms()
+	wg.Wait()	
+	//Sleep100ms()
 	for i := 0; i < 10; i++ {
 		l := new(testLogger)
 		SetLogger(l)

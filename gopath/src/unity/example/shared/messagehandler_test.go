@@ -4,11 +4,9 @@ import "testing"
 
 func TestMessageHandler(t *testing.T) {
 	h := NewMessageHandler()
-	m0 := newMessage(0, nil, true)
-	m1 := newMessage(1, nil, true)
-	m2 := newMessage(2, nil, true)
+	
 	var res int
-	h.Handle(m2) // shouldn't raise
+	h.Handle(newMessage(2, nil, false)) // shouldn't raise
 	if res != 0 {
 		t.Error("wrong res with no handlers")
 	}
@@ -20,20 +18,20 @@ func TestMessageHandler(t *testing.T) {
 	h.SetHandler(1, func(m *Message) {
 		res++
 	})
-	h.Handle(m1)
+	h.Handle(newMessage(1, nil, false))
 	if res == 0 {
 		t.Error("code 1 was not handled")
 	}
-	h.Handle(m0)
+	h.Handle(newMessage(0, nil, false))
 	if res != 0 {
 		t.Error("code 0 was not handled")
 	}
 	h.SetHandler(0, nil)
-	h.Handle(m1)
+	h.Handle(newMessage(1, nil, false))
 	if res == 0 {
 		t.Error("code 1 was not handled")
 	}
-	h.Handle(m0)
+	h.Handle(newMessage(0, nil, false))
 	if res == 0 {
 		t.Error("code 0 shouldn't be handled after handler was delete")
 	}

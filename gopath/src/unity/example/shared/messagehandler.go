@@ -10,7 +10,7 @@ func NewMessageHandler() *MessageHandler {
 	return &MessageHandler{handlers: make(map[MessageCode]func(m *Message))}
 }
 
-//SetHandler sets handler for code. If f is nil handler removes
+//SetHandler sets handler associated with message code. If f is nil handler removes
 func (h *MessageHandler) SetHandler(code MessageCode, f func(m *Message)) {
 	if f == nil {
 		delete(h.handlers, code)
@@ -20,8 +20,10 @@ func (h *MessageHandler) SetHandler(code MessageCode, f func(m *Message)) {
 }
 
 //Handle handles Message
-func (h *MessageHandler) Handle(msg *Message) {
-	if handler, ok := h.handlers[msg.code]; ok {
-		handler(msg)
+func (h *MessageHandler) Handle(m *Message) {
+	if handler, ok := h.handlers[m.code]; ok {
+		m.handle(handler)
+	} else {
+		m.free()
 	}
 }

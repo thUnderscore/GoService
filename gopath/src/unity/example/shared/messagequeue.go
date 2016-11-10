@@ -3,25 +3,41 @@ package shared
 //MessageQueue structure represent message queue
 type MessageQueue struct {
 	JobCond
+	*MessageHandler
 	//head of messages list
 	head *Message
 	//tail of messages list
-	tail    *Message
-	handler func(data *Message)
+	tail *Message
 }
 
 //Send adds message to queue. If queue is not running
 //message is not added and func returns true
-func (q *MessageQueue) Send(code MessageCode, data interface{}, sync bool) interface{} {
+func (q *MessageQueue) Send(code MessageCode, data interface{}) {	
+	q.mx.Lock()
+	if !q.on {
+		q.mx.Unlock()
+		return
+	}		
+	m := newMessage(code, data, false)	
+	if q.head == nil {
+		q.head = m
+	} else {
+		q.tail.next = m
+	}
+	q.tail = m	
+	q.InternalWake()
+	q.mx.Unlock()
+}
 
+//SendSync adds message to queue and wait result. If queue is not running
+//message is not added and func returns true
+func (q *MessageQueue) SendSync(code MessageCode, data interface{}) interface{} {
 	q.mx.Lock()
 	if !q.on {
 		q.mx.Unlock()
 		return nil
-	}
-
-	m := newMessage(code, data, sync)
-	//data.setNext(nil)
+	}	
+	m := newMessage(code, data, true)
 	if q.head == nil {
 		q.head = m
 	} else {
@@ -30,28 +46,45 @@ func (q *MessageQueue) Send(code MessageCode, data interface{}, sync bool) inter
 	q.tail = m
 	q.InternalWake()
 	q.mx.Unlock()
-	if !sync {
-		return nil
-	}
 	return m.wait()
 }
 
-//NewMessageQueue MessageQueue constructor
-func NewMessageQueue(handler func(*Message)) *MessageQueue {
-	mq := &MessageQueue{handler: handler}
+//NewMessageQueueEx MessageQueue constructor. handler calls for every message in queue
+//SetHandler does not work if you create MessageQueue using this function
+func NewMessageQueueEx(handler func(*Message)) *MessageQueue {
+	return newMessageQueue(handler)
+}
+
+//NewMessageQueue MessageQueue constructor. MessageQueue uses embeded MessageHandler
+//to handle messages. Use SetHandler to assign handler to  code
+func NewMessageQueue() *MessageQueue {
+	handler := NewMessageHandler()
+	mq := newMessageQueue(handler.Handle)
+	mq.MessageHandler = handler
+	return mq
+}
+
+func newMessageQueue(handler func(*Message)) *MessageQueue {
+	mq := &MessageQueue{}
 	mq.JobCond = *NewJobCond(func(j *JobCond) {
-		curr := mq.head
+		m := mq.head
 		mq.head = nil
-		mq.tail = nil
-		var m *Message
+		mq.tail = nil		
 		j.mx.Unlock()
-		for curr != nil {
-			handler(curr)
-			m = curr
-			curr = curr.next
-			m.handled()
-		}
+		m.handle(handler)
 		j.mx.Lock()
 	}, false)
+
 	return mq
+}
+
+//SetHandler sets handler associated with message code. If f is nil handler removes
+//DOesn't work if you create MessageQueue using NewMessageQueueEx
+func (q *MessageQueue) SetHandler(code MessageCode, f func(m *Message)) {
+	q.mx.Lock()
+	defer q.mx.Unlock()
+	if q.MessageHandler == nil || q.on {
+		return
+	}
+	q.MessageHandler.SetHandler(code, f)
 }
