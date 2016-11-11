@@ -14,7 +14,7 @@ func TestSwitcher(t *testing.T) {
 	if c != 1 {
 		t.Error("counter should be equal", 1)
 	}
-	if !s.isOn() {
+	if !s.IsActive() {
 		t.Error("switcher should be on")
 	}
 	for i := 0; i < 20; i++ {
@@ -23,7 +23,7 @@ func TestSwitcher(t *testing.T) {
 		})
 	}
 	Sleep100ms()
-	if s.isOn() {
+	if s.IsActive() {
 		t.Error("switcher should be off")
 	}
 	if c != 11 {
@@ -38,7 +38,7 @@ func TestSwitcher(t *testing.T) {
 	if c != 12 {
 		t.Error("counter should be equal", 12)
 	}
-	if !s.isOn() {
+	if !s.IsActive() {
 		t.Error("switcher should be on")
 	}
 

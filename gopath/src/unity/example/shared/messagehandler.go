@@ -21,8 +21,8 @@ func (h *MessageHandler) SetHandler(code MessageCode, f func(m *Message)) {
 
 //Handle handles Message
 func (h *MessageHandler) Handle(m *Message) {
-	if handler, ok := h.handlers[m.code]; ok {
-		m.handle(handler)
+	if handler, ok := h.handlers[m.Code]; ok {
+		m.Handle(handler)
 	} else {
 		m.free()
 	}

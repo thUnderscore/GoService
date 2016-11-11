@@ -4,18 +4,13 @@ package client
 import "C"
 
 import "unity/example/shared"
-
-//"context"
-//"google.golang.org/grpc"
+import "time"
 
 //Connector  representsconnection point for client
 type Connector C.struct_ClientConnectorTag
 
 //Conn represent connetion point between go lib and client
 var Conn *Connector
-
-//Svcs represent root group of services
-var Svcs *shared.ServiceGroup
 
 //StartClient starts client. Call it at the very beginning of app life cycle. Not thread safe
 //export StartClient
@@ -24,10 +19,8 @@ func StartClient(c *Connector) {
 		shared.Log("Client is already started")
 	}
 	Conn = (*Connector)(c)
-	Svcs = shared.NewServiceGroup()
 	shared.SetLogger(&clientLogger{c.log})
 	shared.Log("StartClient")
-	go statisticManager()
 
 }
 
@@ -39,9 +32,7 @@ func StopClient() {
 		return
 	}
 	shared.Log("StopClient")
-	Svcs.StopGroup(nil)
 	shared.ResetLogger()
-	Svcs = nil
 	Conn = nil
 }
 
@@ -77,32 +68,37 @@ func Count() int {
 
 }
 
-/*
-	const (
-		address     = "localhost:50051"
-		defaultName = "world"
-	)
+var stat *Statistic
 
-		gconn, err := grpc.Dial(address, grpc.WithInsecure())
-		if err != nil {
-			Log(fmt.Sprintf("did not connect: %v", err))
+//GoStatistic  container for go statistic
+type GoStatistic C.struct_GoStatisticTag
+
+//StartStatistic starts collection of statistic with given interval (in ms)
+//export StartStatistic
+func StartStatistic(interval int) {
+	if stat == nil {
+		stat = NewStatistic()
+	} else {
+		if stat.IsActive() {
+			return
 		}
-		defer func() {
-			defer gconn.Close()
-			if r := recover(); r != nil {
-				Log(fmt.Sprintf("Recovered: %v", r))
-			}
-		}()
+	}
+	stat.Interval = time.Duration(interval) * time.Millisecond
+	stat.Start()
 
-		gc := NewGreeterClient(gconn)
+}
 
-		// Contact the server and print out its response.
-		name := defaultName
+//StopStatistic stops collection ofstatistic
+//export StopStatistic
+func StopStatistic() {
+	if stat == nil {
+		return
+	}
+	stat.Stop(true)
+}
 
-		r, err := gc.SayHello(context.Background(), &HelloRequest{Name: name})
-		if err != nil {
-			Log(fmt.Sprintf("could not greet: %v", err))
-		} else {
-			Log(fmt.Sprintf("Greeting: %s", r.Message))
-		}
-*/
+//GetStat returns pointer to last collected statistic. Expected to becalled in a loop by ONLY ONE consumer
+//export GetStat
+func GetStat() *GoStatistic {
+	return stat.Get()
+}

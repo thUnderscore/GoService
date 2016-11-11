@@ -12,41 +12,41 @@ type MessageQueue struct {
 
 //Send adds message to queue. If queue is not running
 //message is not added and func returns true
-func (q *MessageQueue) Send(code MessageCode, data interface{}) {	
-	q.mx.Lock()
-	if !q.on {
-		q.mx.Unlock()
+func (q *MessageQueue) Send(code MessageCode, data interface{}) {
+	q.Lock()
+	if !q.Active {
+		q.Unlock()
 		return
-	}		
-	m := newMessage(code, data, false)	
+	}
+	m := NewMessage(code, data, false)
 	if q.head == nil {
 		q.head = m
 	} else {
-		q.tail.next = m
+		q.tail.Next = m
 	}
-	q.tail = m	
+	q.tail = m
 	q.InternalWake()
-	q.mx.Unlock()
+	q.Unlock()
 }
 
 //SendSync adds message to queue and wait result. If queue is not running
 //message is not added and func returns true
 func (q *MessageQueue) SendSync(code MessageCode, data interface{}) interface{} {
-	q.mx.Lock()
-	if !q.on {
-		q.mx.Unlock()
+	q.Lock()
+	if !q.Active {
+		q.Unlock()
 		return nil
-	}	
-	m := newMessage(code, data, true)
+	}
+	m := NewMessage(code, data, true)
 	if q.head == nil {
 		q.head = m
 	} else {
-		q.tail.next = m
+		q.tail.Next = m
 	}
 	q.tail = m
 	q.InternalWake()
-	q.mx.Unlock()
-	return m.wait()
+	q.Unlock()
+	return m.Wait()
 }
 
 //NewMessageQueueEx MessageQueue constructor. handler calls for every message in queue
@@ -69,10 +69,10 @@ func newMessageQueue(handler func(*Message)) *MessageQueue {
 	mq.JobCond = *NewJobCond(func(j *JobCond) {
 		m := mq.head
 		mq.head = nil
-		mq.tail = nil		
-		j.mx.Unlock()
-		m.handle(handler)
-		j.mx.Lock()
+		mq.tail = nil
+		j.Unlock()
+		m.Handle(handler)
+		j.Lock()
 	}, false)
 
 	return mq
@@ -81,9 +81,9 @@ func newMessageQueue(handler func(*Message)) *MessageQueue {
 //SetHandler sets handler associated with message code. If f is nil handler removes
 //DOesn't work if you create MessageQueue using NewMessageQueueEx
 func (q *MessageQueue) SetHandler(code MessageCode, f func(m *Message)) {
-	q.mx.Lock()
-	defer q.mx.Unlock()
-	if q.MessageHandler == nil || q.on {
+	q.Lock()
+	defer q.Unlock()
+	if q.MessageHandler == nil || q.Active {
 		return
 	}
 	q.MessageHandler.SetHandler(code, f)

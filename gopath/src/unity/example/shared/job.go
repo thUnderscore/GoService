@@ -6,13 +6,13 @@ import "sync"
 type Job interface {
 	Start()
 	Stop(sync bool)
-	isOn() bool
+	IsActive() bool
 }
 
 type jobSwitcher struct {
 	Switcher
 	//Cond used for goroutine loop  implementation
-	cnd      *sync.Cond
+	*sync.Cond
 	syncStop bool
 }
 
@@ -26,14 +26,14 @@ type JobCond struct {
 	//implement this loop yourself in f function if isEx == true
 	//			var isWaiting bool
 	//			for {
-	//				if j.cntr == 0 && j.on {
+	//				if j.cntr == 0 && j.Active {
 	//					//wait wake
-	//					cnd.Wait()
+	//					j.Wait()
 	//				}
 	//				isWaiting = j.isWaiting
 	//				j.isWaiting = false
 	//				//if Stop and no any Wake happend after last handling j.cntr is 0
-	//				//handle situation when j.cntr > 0 and j.isOn == false in f if you need
+	//				//handle situation when j.cntr > 0 and j.Active == false in f if you need
 	//				if j.cntr > 0 {
 	//					//reset state
 	//					j.cntr = 0
@@ -48,8 +48,8 @@ type JobCond struct {
 	//					j.waitCnd.L.Unlock()
 	//				}
 	//
-	//				if !j.on {
-	//					//if j.mx was unlocked during wakes handlig (it makes sense - Wake and WakeSync
+	//				if !j.Active {
+	//					//if j was unlocked during wakes handlig (it makes sense - Wake and WakeSync
 	//					//use same mutex) - handle possible wakes
 	//					if j.cntr > 0 {
 	//						//reset state
@@ -59,10 +59,10 @@ type JobCond struct {
 	//					}
 	//					if j.syncStop {
 	//						//signal to InternalStop
-	//						j.cnd.Signal()
+	//						j.Signal()
 	//					}
 	//					//Job was stopped
-	//					j.mx.Unlock()
+	//					j.Unlock()
 	//					return
 	//				}
 	//			}
@@ -75,7 +75,7 @@ type JobCond struct {
 	cntr int
 	//Count of wakes received after last handling. Can't be used outside  handler,
 	//because value sets before handler call
-	wakesToHandle int
+	WakesToHandle int
 	//is some caller waiting for back signal
 	isWaiting bool
 	//implements back signal
@@ -90,7 +90,7 @@ type JobChan struct {
 	//thread safe Job state
 	jobSwitcher
 	f       func(*JobChan)
-	exitChn chan struct{}
+	ExitChn chan struct{}
 }
 
 //Start starts job
@@ -111,8 +111,8 @@ func (j *JobCond) InternalStart() {
 	j.cntr = 0
 	if j.isEx {
 		go func() {
-			j.mx.Lock()
-			j.cnd.Signal()
+			j.Lock()
+			j.Signal()
 			//j.mx.Unlock()
 			j.f(j)
 
@@ -120,15 +120,13 @@ func (j *JobCond) InternalStart() {
 	} else {
 		go func() {
 			var isWaiting bool
-			l := j.mx
-			cnd := j.cnd
-			l.Lock()
-			cnd.Signal()
+			j.Lock()
+			j.Signal()
 			//implement this loop yourself in f function if isEx == true
 			for {
-				if j.cntr == 0 && j.on {
+				if j.cntr == 0 && j.Active {
 					//wait signal
-					cnd.Wait()
+					j.Wait()
 				}
 				isWaiting = j.isWaiting
 				j.isWaiting = false
@@ -137,38 +135,38 @@ func (j *JobCond) InternalStart() {
 					//if WakeSync was called and some caller wait for back signal
 					j.signalWakeSync()
 				}
-				if !j.on {
-					//if j.mx was unlocked during wakes handling (it makes sense - Wake and WakeSync
+				if !j.Active {
+					//if j was unlocked during wakes handling (it makes sense - Wake and WakeSync
 					//use same mutex) - handle possible wakes
 					j.handleWakes()
 					if j.syncStop {
 						//signal to InternalStop
-						j.cnd.Signal()
+						j.Signal()
 					}
 					//Job was stopped
-					l.Unlock()
+					j.Unlock()
 					return
 				}
 			}
 		}()
 	}
-	j.cnd.Wait()
+	j.Wait()
 }
 
 //InternalStop Initiates job stop. Don't call it unless you create new abstraction based on job like Messagequeue
 func (j *JobCond) InternalStop(sync bool) {
 	j.syncStop = sync
-	j.cnd.Signal()
+	j.Signal()
 	if j.syncStop {
-		j.cnd.Wait()
+		j.Wait()
 	}
 }
 
 func (j *JobCond) handleWakes() {
 	//if Stop and no any Wake happend after last handling j.cntr is 0
 	//handle situation when j.cntr > 0 and j.isOn == false in f if you need
-	if j.cntr > 0 {		
-		j.wakesToHandle = j.cntr
+	if j.cntr > 0 {
+		j.WakesToHandle = j.cntr
 		//reset state
 		j.cntr = 0
 		//call wake handler
@@ -178,9 +176,9 @@ func (j *JobCond) handleWakes() {
 
 //Wake waiks job goroutine
 func (j *JobCond) Wake() {
-	j.mx.Lock()
-	defer j.mx.Unlock()
-	if !j.on {
+	j.Lock()
+	defer j.Unlock()
+	if !j.Active {
 		return
 	}
 	j.InternalWake()
@@ -191,14 +189,14 @@ func (j *JobCond) WakeSync() {
 	j.waitMx.Lock()
 	defer j.waitMx.Unlock()
 
-	j.mx.Lock()
-	if !j.on {
-		j.mx.Unlock()
+	j.Lock()
+	if !j.Active {
+		j.Unlock()
 		return
 	}
 	j.isWaiting = true
 	j.InternalWake()
-	j.mx.Unlock()
+	j.Unlock()
 	j.waitWakeSync()
 }
 
@@ -217,7 +215,7 @@ func (j *JobCond) waitWakeSync() {
 //InternalWake does actual waiking of job goroutine. Is not thread safe
 func (j *JobCond) InternalWake() {
 	j.cntr++
-	j.cnd.Signal()
+	j.Signal()
 }
 
 //Start starts job
@@ -236,22 +234,26 @@ func (j *JobChan) Stop(sync bool) {
 func (j *JobChan) InternalStart() {
 	go func() {
 		//signal InternalStart
-		j.signal()
+		j.Lock()
+		j.Signal()
+		j.Unlock()
 		j.f(j)
 		if j.syncStop {
 			//signal to InternalStop
-			j.signal()
+			j.Lock()
+			j.Signal()
+			j.Unlock()
 		}
 	}()
-	j.cnd.Wait()
+	j.Wait()
 }
 
 //InternalStop Initiates job stop. Don't call it unless you create new abstraction based on job like Messagequeue
 func (j *JobChan) InternalStop(sync bool) {
 	j.syncStop = sync
-	j.exitChn <- struct{}{}
+	j.ExitChn <- struct{}{}
 	if j.syncStop {
-		j.cnd.Wait()
+		j.Wait()
 	}
 }
 
@@ -270,17 +272,11 @@ func NewJobChan(f func(*JobChan)) *JobChan {
 	return &JobChan{
 		jobSwitcher: newJobSwitcher(),
 		f:           f,
-		exitChn:     make(chan struct{})}
+		ExitChn:     make(chan struct{})}
 }
 
 func newJobSwitcher() jobSwitcher {
 	sw := jobSwitcher{Switcher: NewSwitcher()}
-	sw.cnd = sync.NewCond(sw.mx)
+	sw.Cond = sync.NewCond(sw.Mutex)
 	return sw
-}
-
-func (sw *jobSwitcher) signal() {
-	sw.mx.Lock()
-	sw.cnd.Signal()
-	sw.mx.Unlock()
 }

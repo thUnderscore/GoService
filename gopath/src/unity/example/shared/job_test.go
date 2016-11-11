@@ -12,8 +12,8 @@ func TestJobCondSmpl(t *testing.T) {
 
 	cntr := 0
 	j := NewJobCond(func(j *JobCond) {
-		cntr = cntr + j.wakesToHandle
-		for i := 0; i < j.wakesToHandle; i++ {
+		cntr = cntr + j.WakesToHandle
+		for i := 0; i < j.WakesToHandle; i++ {
 			Log("handle JobCond")
 			wg.Done()
 		}
@@ -23,7 +23,7 @@ func TestJobCondSmpl(t *testing.T) {
 		go j.Start()
 	}
 	j.Start()
-	if !j.isOn() {
+	if !j.IsActive() {
 		t.Error("Job should be started")
 	}
 	wg.Add(20)
@@ -63,12 +63,12 @@ func TestJobCondSmpl(t *testing.T) {
 		t.Error("wake on stopped job should be ignorred ")
 	}
 	j.WakeSync() //shouldn't hang
-	if j.isOn() {
+	if j.IsActive() {
 		t.Error("Job should be stopped")
 	}
 
 	j.Start()
-	if !j.isOn() {
+	if !j.IsActive() {
 		t.Error("Restart: Job should be started")
 	}
 	wg.Add(1)
@@ -83,7 +83,7 @@ func TestJobCondSmpl(t *testing.T) {
 		go j.Stop(false)
 	}
 	Sleep100ms()
-	if j.isOn() {
+	if j.IsActive() {
 		t.Error("Restart: Job should be stopped")
 	}
 
@@ -100,17 +100,17 @@ func TestJobCondEx(t *testing.T) {
 	j := NewJobCond(func(j *JobCond) {
 
 		for {
-			if j.cntr == 0 && j.on {
+			if j.cntr == 0 && j.Active {
 				//wait signal
-				j.cnd.Wait()
+				j.Wait()
 			}
 			//if Stop and no any Wake happend after last handling j.cntr is 0
 			//handle situation when j.cntr > 0 and j.isOn == false in f if you need
 			if j.cntr > 0 {
 				//handle gignals
-				j.wakesToHandle = j.cntr
-				cntr = cntr + j.wakesToHandle
-				for i := 0; i < j.wakesToHandle; i++ {
+				j.WakesToHandle = j.cntr
+				cntr = cntr + j.WakesToHandle
+				for i := 0; i < j.WakesToHandle; i++ {
 					Log("handle JobCondEx")
 					wg.Done()
 				}
@@ -126,13 +126,13 @@ func TestJobCondEx(t *testing.T) {
 				j.waitCnd.L.Unlock()
 			}
 
-			if !j.on {
+			if !j.Active {
 				//if j.mx was unlocked during wakes handlig (it makes sense - Wake and WakeSync
 				//use same mutex) - handle possible wakes
 				if j.cntr > 0 {
 					//handle gignals
-					j.wakesToHandle = j.cntr
-					cntr = cntr + j.wakesToHandle
+					j.WakesToHandle = j.cntr
+					cntr = cntr + j.WakesToHandle
 					Log("handle JobCondEx")
 					wg.Done()
 					//reset wakes counter
@@ -140,10 +140,10 @@ func TestJobCondEx(t *testing.T) {
 				}
 				if j.syncStop {
 					//signal to InternalStop
-					j.cnd.Signal()
+					j.Signal()
 				}
 				//Job was stopped
-				j.mx.Unlock()
+				j.Unlock()
 				return
 			}
 		}
@@ -154,7 +154,7 @@ func TestJobCondEx(t *testing.T) {
 		go j.Start()
 	}
 	j.Start()
-	if !j.isOn() {
+	if !j.IsActive() {
 		t.Error("Job should be started")
 	}
 
@@ -192,12 +192,12 @@ func TestJobCondEx(t *testing.T) {
 			go j.Stop(false)
 		}
 	*/
-	if j.isOn() {
+	if j.IsActive() {
 		t.Error("Job should be stopped")
 	}
 
 	j.Start()
-	if !j.isOn() {
+	if !j.IsActive() {
 		t.Error("Restart: Job should be started")
 	}
 	wg.Add(1)
@@ -212,7 +212,7 @@ func TestJobCondEx(t *testing.T) {
 		go j.Stop(false)
 	}
 	Sleep100ms()
-	if j.isOn() {
+	if j.IsActive() {
 		t.Error("Restart: Job should be stopped")
 	}
 }
@@ -238,7 +238,7 @@ func TestJobChan(t *testing.T) {
 				cnd.L.Lock()
 				cnd.Signal()
 				cnd.L.Unlock()
-			case <-j.exitChn:
+			case <-j.ExitChn:
 				return
 			}
 
@@ -249,7 +249,7 @@ func TestJobChan(t *testing.T) {
 		go j.Start()
 	}
 	j.Start()
-	if !j.isOn() {
+	if !j.IsActive() {
 		t.Error("Job should be started")
 	}
 	wg.Add(10)
@@ -273,12 +273,12 @@ func TestJobChan(t *testing.T) {
 	}
 
 	j.Stop(true)
-	if j.isOn() {
+	if j.IsActive() {
 		t.Error("Job should be stopped")
 	}
 
 	j.Start()
-	if !j.isOn() {
+	if !j.IsActive() {
 		t.Error("Restart: Job should be started")
 	}
 	//wg.Add(1)
@@ -299,7 +299,7 @@ func TestJobChan(t *testing.T) {
 		go j.Stop(false)
 	}
 	Sleep100ms()
-	if j.isOn() {
+	if j.IsActive() {
 		t.Error("Restart: Job should be stopped")
 	}
 

@@ -19,22 +19,22 @@ func TestMessageQueueEx(t *testing.T) {
 	var mq *MessageQueue
 	var msgcntr int
 	mq = NewMessageQueueEx(func(m *Message) {
-		defer wg.Done()		
+		defer wg.Done()
 		msgcntr++
 		var data *TestMessage
-		if m.data != nil {
-			data = m.data.(*TestMessage)
+		if m.Data != nil {
+			data = m.Data.(*TestMessage)
 		}
-		m.data = 42
+		m.Data = 42
 		if data == nil {
 			l.Log("nil")
 			return
 		}
 
-		if mq.isOn() {
-			switch m.code {
+		if mq.IsActive() {
+			switch m.Code {
 			case 42:
-				Logf("%d%s", m.code, data.text)
+				Logf("%d%s", m.Code, data.text)
 			case 48:
 				Sleep50ms()
 				fallthrough
@@ -91,7 +91,7 @@ func TestMessageQueueEx(t *testing.T) {
 	CheckTestLogger(t, l, cntr, "42message")
 
 	wg.Add(10)
-	for i := 0; i < 10; i++ {		
+	for i := 0; i < 10; i++ {
 		go mq.Send(1, &TestMessage{text: "message_go"})
 	}
 	wg.Wait()
@@ -179,12 +179,12 @@ func TestMessageQueueStop(t *testing.T) {
 
 	mq.Start()
 
-	if !mq.isOn() {
+	if !mq.IsActive() {
 		t.Error("Stop empty queue: queue was not started")
 	}
 	mq.Stop(true)
 
-	if mq.isOn() {
+	if mq.IsActive() {
 		t.Error("Stop empty queue: queue was not stopped")
 	}
 
@@ -195,20 +195,20 @@ func TestMessageQueueStop(t *testing.T) {
 		Sleep10ms()
 	})
 	mq.Start()
-	if !mq.isOn() {
+	if !mq.IsActive() {
 		t.Error("Stop empty queue: queue was not started")
 	}
 	//handling during aprox. 10* 10ms
 	for i := 0; i < 10; i++ {
 		mq.Send(0, &TestMessage{text: "message"})
-	}	
-	mq.Stop(false)	
+	}
+	mq.Stop(false)
 	if mq.cntr == 0 {
 		t.Error("Stop not empty queue: cntr shoud be great than 0")
 	}
 	Sleep100ms()
 	Sleep10ms()
-	if mq.isOn() {
+	if mq.IsActive() {
 		t.Error("Stop not empty queue: state should be mqsStoped")
 	}
 	if mq.cntr != 0 {

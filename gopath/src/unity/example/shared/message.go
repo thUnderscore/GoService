@@ -14,22 +14,23 @@ type MessageCode byte
 
 //Message is wrapper for message code and data. Messages could be joined in linked list
 //it use internal pool, and returns automaticly to pool when handled, so don't create or cache it
-//This code cause lead to very tricky results, because m returns to pool twice 
-//		m := new(Message)
+//This code cause lead to very tricky results, because m returns to pool twice
+//		m := New(Message)
 //		h := NewMessageHandler()
 //		h.Handle(m)
 //		h.Handle(m)
 type Message struct {
 	//code of messsage. Provide additional info for handlers, but could be ignored
-	code MessageCode
+	Code MessageCode
+	//additional data/ Could be nil
+	Data interface{}
+	//reference to next message in linked list
 	//is message sent in sync mode
 	sync bool
 	//caller wait for this Cond if sync == true
 	cnd *sync.Cond
-	//additional data/ Could be nil
-	data interface{}
-	//reference to next message in linked list
-	next *Message
+	//reference to next Message if queued
+	Next *Message
 }
 
 //message pool
@@ -39,11 +40,11 @@ var messageFree = sync.Pool{
 	},
 }
 
-// newPrinter allocates a new pp struct or grabs a cached one.
-func newMessage(code MessageCode, data interface{}, sync bool) *Message {
+// NewMessage allocates a new Message struct or grabs a cached one.
+func NewMessage(code MessageCode, data interface{}, sync bool) *Message {
 	m := messageFree.Get().(*Message)
-	m.code = code
-	m.data = data
+	m.Code = code
+	m.Data = data
 	m.sync = sync
 	if sync {
 		m.cnd.L.Lock()
@@ -51,19 +52,21 @@ func newMessage(code MessageCode, data interface{}, sync bool) *Message {
 	return m
 }
 
-// free saves used pp structs in ppFree; avoids an allocation per invocation.
-func (m *Message)free() {
-	m.next = nil
-	m.data = nil
+//Free saves used pp structs in ppFree; avoids an allocation per invocation.
+func (m *Message) free() {
+	m.Next = nil
+	m.Data = nil
 	messageFree.Put(m)
 }
 
-func (m *Message)handle(handler func(*Message)) {
+//Handle calls hanler for Message and all messages queued through Next field
+//if Message is sync - signals to waiter else frees message
+func (m *Message) Handle(handler func(*Message)) {
 	var tmp *Message
 	for m != nil {
 		handler(m)
 		tmp = m
-		m = m.next
+		m = m.Next
 		if tmp.sync {
 			tmp.cnd.L.Lock()
 			tmp.cnd.Signal()
@@ -74,10 +77,11 @@ func (m *Message)handle(handler func(*Message)) {
 	}
 }
 
-func (m *Message) wait() interface{} {
+//Wait waits for sync message and returns data. Wait frees message
+func (m *Message) Wait() interface{} {
 	m.cnd.Wait()
 	m.cnd.L.Unlock()
-	data := m.data
+	data := m.Data
 	m.free()
 	return data
 }

@@ -4,39 +4,41 @@ import "sync"
 
 //Switcher sync  bool flag and allows call func on flag changes
 type Switcher struct {
-	mx *sync.Mutex
-	on bool
+	*sync.Mutex
+	//Normaly use IsActive() function. Use this field if mutex is already locked
+	Active bool
 }
 
 //On calls f if switched off and changes state of Switcher
 func (s *Switcher) On(f func()) {
-	s.mx.Lock()
-	defer s.mx.Unlock()
-	if s.on {
+	s.Lock()
+	defer s.Unlock()
+	if s.Active {
 		return
 	}
-	s.on = true
+	s.Active = true
 	f()
 }
 
 //Off calls f if switched on and changes state of Switcher
 func (s *Switcher) Off(f func()) {
-	s.mx.Lock()
-	defer s.mx.Unlock()
-	if !s.on {
+	s.Lock()
+	defer s.Unlock()
+	if !s.Active {
 		return
 	}
-	s.on = false
+	s.Active = false
 	f()
 }
 
-func (s *Switcher) isOn() bool {
-	s.mx.Lock()
-	defer s.mx.Unlock()
-	return s.on
+//IsActive indicates if switcher is on
+func (s *Switcher) IsActive() bool {
+	s.Lock()
+	defer s.Unlock()
+	return s.Active
 }
 
 //NewSwitcher Creates new Switcher
 func NewSwitcher() Switcher {
-	return Switcher{mx: new(sync.Mutex)}
+	return Switcher{Mutex: new(sync.Mutex)}
 }
