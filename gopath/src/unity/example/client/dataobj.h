@@ -8,8 +8,7 @@ typedef void (*stringCallback)(void*, int);
 extern void CallStringCallback(stringCallback, void*, int);
 
 typedef struct GoStatisticTag
-{
-	int InUse;
+{	
 	int64_t Interval;	
 	int NumGoroutine;  
 	uint64_t Alloc;

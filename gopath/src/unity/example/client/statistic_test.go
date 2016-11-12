@@ -10,15 +10,12 @@ var c = Connector{}
 
 func TestStatistic(t *testing.T) {
 	StartClient(&c)
-
 	//StartRoom(&c)
 	StartStatistic(10)
-	var st *GoStatistic
-	for i := 0; i < 2000; i++ {
-		st = GetStat()
-		if st == nil {
-			t.Error("GetStat() returns unexpected nil")
-			return
+	var st GoStatistic
+	for i := 0; i < 100; i++ {
+		if !GetStat(&st) {
+			t.Error("GetStat() returns unexpected false")
 		}
 		//fmt.Println(i, st.NumGC)
 		time.Sleep(time.Millisecond * 10)
@@ -26,9 +23,7 @@ func TestStatistic(t *testing.T) {
 	//StopRoom()
 	fmt.Println(st.NumGC)
 	StopStatistic()
-	st = GetStat()
-	if st != nil {
-		t.Error("GetStat() returns unexpected non nil value")
-		return
+	if GetStat(&st) {
+		t.Error("GetStat() returns unexpected true")
 	}
 }

@@ -4,13 +4,13 @@ package client
 import "C"
 
 import "unity/example/shared"
-import "time"
 
 //Connector  representsconnection point for client
 type Connector C.struct_ClientConnectorTag
 
 //Conn represent connetion point between go lib and client
 var Conn *Connector
+var stat *StatisticMan
 
 //StartClient starts client. Call it at the very beginning of app life cycle. Not thread safe
 //export StartClient
@@ -66,39 +66,4 @@ func Count() int {
 	//conn.Log("Log from GO")
 	return int(res)
 
-}
-
-var stat *Statistic
-
-//GoStatistic  container for go statistic
-type GoStatistic C.struct_GoStatisticTag
-
-//StartStatistic starts collection of statistic with given interval (in ms)
-//export StartStatistic
-func StartStatistic(interval int) {
-	if stat == nil {
-		stat = NewStatistic()
-	} else {
-		if stat.IsActive() {
-			return
-		}
-	}
-	stat.Interval = time.Duration(interval) * time.Millisecond
-	stat.Start()
-
-}
-
-//StopStatistic stops collection ofstatistic
-//export StopStatistic
-func StopStatistic() {
-	if stat == nil {
-		return
-	}
-	stat.Stop(true)
-}
-
-//GetStat returns pointer to last collected statistic. Expected to becalled in a loop by ONLY ONE consumer
-//export GetStat
-func GetStat() *GoStatistic {
-	return stat.Get()
 }
