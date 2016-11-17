@@ -19,10 +19,15 @@ func TestJobCondSmpl(t *testing.T) {
 		}
 	}, false)
 	var _ Job = j //should implement Job
+	wg.Add(10)
 	for i := 0; i < 10; i++ {
-		go j.Start()
+		go func() {
+			j.Start(true)
+			wg.Done()
+		}()
 	}
-	j.Start()
+	j.Start(true)
+	wg.Wait()
 	if !j.IsActive() {
 		t.Error("Job should be started")
 	}
@@ -67,7 +72,11 @@ func TestJobCondSmpl(t *testing.T) {
 		t.Error("Job should be stopped")
 	}
 
-	j.Start()
+	j.Start(true)
+	if j.IsActive() {
+		t.Error("Restart: Job should not be started (once == true)")
+	}
+	j.Start(false)
 	if !j.IsActive() {
 		t.Error("Restart: Job should be started")
 	}
@@ -138,22 +147,22 @@ func TestJobCondEx(t *testing.T) {
 					//reset wakes counter
 					j.cntr = 0
 				}
-				if j.syncStop {
-					//signal to InternalStop
-					j.Signal()
-				}
-				//Job was stopped
-				j.Unlock()
 				return
 			}
 		}
 
 	}, true)
 	var _ Job = j //should implement Job
+
+	wg.Add(10)
 	for i := 0; i < 10; i++ {
-		go j.Start()
+		go func() {
+			j.Start(true)
+			wg.Done()
+		}()
 	}
-	j.Start()
+	j.Start(true)
+	wg.Wait()
 	if !j.IsActive() {
 		t.Error("Job should be started")
 	}
@@ -196,7 +205,11 @@ func TestJobCondEx(t *testing.T) {
 		t.Error("Job should be stopped")
 	}
 
-	j.Start()
+	j.Start(true)
+	if j.IsActive() {
+		t.Error("Restart: Job should not be started (once == true)")
+	}
+	j.Start(false)
 	if !j.IsActive() {
 		t.Error("Restart: Job should be started")
 	}
@@ -215,92 +228,4 @@ func TestJobCondEx(t *testing.T) {
 	if j.IsActive() {
 		t.Error("Restart: Job should be stopped")
 	}
-}
-
-func TestJobChan(t *testing.T) {
-	ResetLogger()
-	l := new(testLogger)
-	SetLogger(l)
-
-	wg := new(sync.WaitGroup)
-
-	cntr := 0
-
-	cnd := sync.NewCond(new(sync.Mutex))
-
-	sgnl := make(chan int, 10)
-	j := NewJobChan(func(j *JobChan) {
-		for {
-			select {
-			case b := <-sgnl:
-				cntr = cntr + b
-				Log("handle JobChan")
-				cnd.L.Lock()
-				cnd.Signal()
-				cnd.L.Unlock()
-			case <-j.ExitChn:
-				return
-			}
-
-		}
-	})
-
-	for i := 0; i < 10; i++ {
-		go j.Start()
-	}
-	j.Start()
-	if !j.IsActive() {
-		t.Error("Job should be started")
-	}
-	wg.Add(10)
-	for i := 0; i < 10; i++ {
-		go func() {
-			Log("before wake")
-			cnd.L.Lock()
-			sgnl <- 1
-			cnd.Wait()
-			cnd.L.Unlock()
-			Log("after wake")
-			wg.Done()
-		}()
-	}
-	wg.Wait()
-	cnt := 30
-	CheckTestLogger(t, l, cnt, "after wake")
-
-	if cntr != 10 {
-		t.Error("cntr should be ", 10, "not", cntr)
-	}
-
-	j.Stop(true)
-	if j.IsActive() {
-		t.Error("Job should be stopped")
-	}
-
-	j.Start()
-	if !j.IsActive() {
-		t.Error("Restart: Job should be started")
-	}
-	//wg.Add(1)
-
-	cnd.L.Lock()
-	sgnl <- 2
-	cnd.Wait()
-	cnd.L.Unlock()
-
-	//wg.Wait()
-	cnt = cnt + 1
-	CheckTestLogger(t, l, cnt, "handle JobChan")
-	if cntr != 12 {
-		t.Error("Wake was not processed")
-	}
-
-	for i := 0; i < 10; i++ {
-		go j.Stop(false)
-	}
-	Sleep100ms()
-	if j.IsActive() {
-		t.Error("Restart: Job should be stopped")
-	}
-
 }

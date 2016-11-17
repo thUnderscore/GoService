@@ -72,7 +72,7 @@ func TestMessageQueueEx(t *testing.T) {
 		t.Error("mq not empty")
 	}
 
-	mq.Start()
+	mq.Start(false)
 
 	cntr := 0
 
@@ -144,7 +144,7 @@ func TestMessageQueue(t *testing.T) {
 		res++
 	})
 
-	mq.Start()
+	mq.Start(false)
 
 	mq.SendSync(1, nil)
 	if res == 0 {
@@ -177,7 +177,7 @@ func TestMessageQueueStop(t *testing.T) {
 	})
 	mq.Stop(true)
 
-	mq.Start()
+	mq.Start(false)
 
 	if !mq.IsActive() {
 		t.Error("Stop empty queue: queue was not started")
@@ -194,7 +194,7 @@ func TestMessageQueueStop(t *testing.T) {
 	mq = NewMessageQueueEx(func(m *Message) {
 		Sleep10ms()
 	})
-	mq.Start()
+	mq.Start(false)
 	if !mq.IsActive() {
 		t.Error("Stop empty queue: queue was not started")
 	}

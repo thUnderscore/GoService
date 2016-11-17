@@ -2,7 +2,7 @@ package shared
 
 //MessageQueue structure represent message queue
 type MessageQueue struct {
-	JobCond
+	*JobCond
 	*MessageHandler
 	//head of messages list
 	head *Message
@@ -66,7 +66,7 @@ func NewMessageQueue() *MessageQueue {
 
 func newMessageQueue(handler func(*Message)) *MessageQueue {
 	mq := &MessageQueue{}
-	mq.JobCond = *NewJobCond(func(j *JobCond) {
+	mq.JobCond = NewJobCond(func(j *JobCond) {
 		m := mq.head
 		mq.head = nil
 		mq.tail = nil

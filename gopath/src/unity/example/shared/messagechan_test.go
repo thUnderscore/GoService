@@ -26,7 +26,7 @@ func TestMessageChan(t *testing.T) {
 			}
 		}
 	})
-	j.Start()
+	j.Start(false)
 
 	mchn.Send(0, 2)
 	res := mchn.SendSync(1, 3).(int)
